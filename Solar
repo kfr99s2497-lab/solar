@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Lux & Solar Calc</title>
+    <!-- iOS Native App Styling -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <style>
+        :root {
+            --bg-color: #000000;
+            --card-bg: #1c1c1e;
+            --text-main: #ffffff;
+            --text-muted: #8e8e93;
+            --orange: #ff9f0a;
+            --blue: #0a84ff;
+            --green: #30d158;
+            --border: #38383a;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .container { width: 100%; max-width: 400px; margin-top: 30px; }
+        h1 { font-size: 28px; font-weight: 700; margin-bottom: 20px; }
+        .card { background-color: var(--card-bg); border-radius: 14px; padding: 20px; margin-bottom: 20px; }
+        .label { font-size: 13px; text-transform: uppercase; color: var(--text-muted); font-weight: 600; margin-bottom: 12px; }
+        .input-group { display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); padding-bottom: 12px; margin-bottom: 12px; }
+        .input-group:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+        input { background: transparent; border: none; color: var(--orange); font-size: 24px; font-weight: 700; text-align: right; outline: none; width: 50%; }
+        .unit { font-size: 16px; font-weight: 600; color: var(--text-muted); }
+        
+        .presets { display: flex; gap: 8px; margin-bottom: 18px; overflow-x: auto; padding-bottom: 4px; }
+        .preset-btn { background: #2c2c2e; border: none; color: white; padding: 10px 14px; border-radius: 8px; font-size: 14px; font-weight: 600; white-space: nowrap; cursor: pointer; }
+        .preset-btn:active { background: #3a3a3c; }
+
+        .result-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--border); }
+        .result-row:last-child { border-bottom: none; padding-bottom: 0; }
+        .result-title { font-size: 17px; font-weight: 600; }
+        .result-sub { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
+        .value-main { color: var(--orange); font-size: 26px; font-weight: 700; }
+        .value-blue { color: var(--blue); font-size: 20px; font-weight: 700; }
+        .value-green { color: var(--green); font-size: 20px; font-weight: 700; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Exposure & Lux Calc</h1>
+        
+        <div class="card">
+            <div class="label">Tap Current Weather</div>
+            <div class="presets">
+                <button class="preset-btn" onclick="setLux(50000)">☀️ Full Sun</button>
+                <button class="preset-btn" onclick="setLux(25000)">⛅️ Partly Cloudy</button>
+                <button class="preset-btn" onclick="setLux(10000)">☁️ Overcast</button>
+            </div>
+            
+            <div class="input-group">
+                <span class="unit">Intensity (Lux)</span>
+                <input type="number" id="luxInput" value="50000" inputmode="numeric">
+            </div>
+            <div class="input-group">
+                <span class="unit">Time Outside (Hours)</span>
+                <input type="number" id="hoursInput" value="1.5" inputmode="decimal" step="0.1">
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="label">Total Generated</div>
+            <div class="result-row">
+                <div>
+                    <div class="result-title">Recorded Lux-Hours</div>
+                    <div class="result-sub">What the watch graph will show</div>
+                </div>
+                <div class="value-main" id="kResult">75.0k</div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="label">Banked Battery Runtime</div>
+            <div class="result-row">
+                <div>
+                    <div class="result-title">Standard Mode</div>
+                    <div class="result-sub">1.15 mW drain</div>
+                </div>
+                <div class="value-blue" id="stdResult">0 mins</div>
+            </div>
+            <div class="result-row">
+                <div>
+                    <div class="result-title">Battery Saver</div>
+                    <div class="result-sub">0.75 mW drain</div>
+                </div>
+                <div class="value-green" id="savResult">0 mins</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const luxInput = document.getElementById('luxInput');
+        const hoursInput = document.getElementById('hoursInput');
+        const kResult = document.getElementById('kResult');
+        const stdResult = document.getElementById('stdResult');
+        const savResult = document.getElementById('savResult');
+
+        // Quick set buttons for weather
+        function setLux(val) {
+            luxInput.value = val;
+            calculate();
+        }
+
+        // The core math engine
+        function calculate() {
+            const lux = parseFloat(luxInput.value) || 0;
+            const hours = parseFloat(hoursInput.value) || 0;
+            
+            // 1. Calculate the 'K' number (e.g. 50,000 lux * 1.5 hours = 75k)
+            const luxHours = lux * hours;
+            const kVal = luxHours / 1000;
+            
+            // 2. Convert to energy (0.2 mWh per 1k lux-hours)
+            const energyMwh = kVal * 0.2;
+            
+            // 3. Convert energy to minutes based on hardware drain
+            const stdMins = Math.round((energyMwh / 1.15) * 60);
+            const savMins = Math.round((energyMwh / 0.75) * 60);
+            
+            // Update the screen
+            kResult.textContent = kVal.toFixed(1) + 'k';
+            stdResult.textContent = stdMins + ' mins';
+            savResult.textContent = savMins + ' mins';
+        }
+
+        // Listen for typing
+        luxInput.addEventListener('input', calculate);
+        hoursInput.addEventListener('input', calculate);
+        
+        // Run once on load
+        calculate();
+    </script>
+</body>
+</html>
